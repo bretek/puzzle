@@ -6,7 +6,7 @@ int main ()
 
     Puzzle puzzle;
     puzzle.addPuzzleImg("../tests/big_test.png");
-    puzzle.findPuzzleDims(4000);
+    puzzle.findPuzzleDims(100);
     puzzle.drawPuzzleLines("classic");
     puzzle.cutPuzzle();
     //puzzle.showImg();
@@ -223,14 +223,29 @@ double Puzzle::randomOffset(double max_deviation)
 
 void Puzzle::cutPuzzle()
 {
+    int piece_num = 0;
     // iterate a pixel in every piece
     for (int x = 0; x < puzzle_width; ++x)
     {
         for (int y = 0; y < puzzle_height; ++y)
         {
-            // grab each pixel adjacent until edge line pixel reached, write out
-            cv::Point2d centre(x*pieceSideLength + pieceSideLength/2, y*pieceSideLength + pieceSideLength/2);
-            cv::circle(lines, centre, 2, cv::Scalar(100));
+            int current_x = x*pieceSideLength + pieceSideLength/2;
+            int current_y = y*pieceSideLength + pieceSideLength/2;
+            int min_padding = 50;
+            double scale_factor = 0;
+
+            // flood fill, threshold, non zero, bound and crop to get single piece
+            cv::Mat current_piece, threshold, points;
+            cv::floodFill(lines, current_piece, cv::Point(current_x, current_y), cv::Scalar(), 0, cv::Scalar(), cv::Scalar(), 4 | cv::FLOODFILL_MASK_ONLY | (255 << 8));
+            cv::threshold(current_piece, threshold, 254, 255, cv::THRESH_BINARY);
+            cv::findNonZero(threshold, points);
+            cv::Rect bounds = cv::boundingRect(threshold);
+            current_piece = cv::Mat(current_piece, bounds);
+
+            // write out
+            std::string piece_name = "../output_pieces/piece" + std::to_string(piece_num) + ".png";
+            cv::imwrite(piece_name, current_piece);
+            piece_num++;
         }
     }
 }
