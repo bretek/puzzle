@@ -5,7 +5,7 @@ int main ()
     std::srand(50);
 
     Puzzle puzzle;
-    puzzle.addPuzzleImg("../big_test.png");
+    puzzle.addPuzzleImg("../tests/big_test.png");
     puzzle.findPuzzleDims(4000);
     puzzle.drawPuzzleLines("classic");
     puzzle.cutPuzzle();
