@@ -5,6 +5,7 @@
 class BSpline
 {
     public:
+    BSpline() {};
     BSpline(std::vector<std::vector<double>> control_points);
     std::vector<double> evalBSpline(double t);
     int getNumPeriods();
