@@ -15,6 +15,7 @@ class Puzzle
     void findPuzzleDims(int num_pieces);
     void drawPuzzleLines(std::string mode);
     void cutPuzzle();
+    void cutPuzzleHiRes();
     void showImg();
     void saveLines();
 
@@ -37,6 +38,13 @@ class Puzzle
 
     int puzzle_width;
     int puzzle_height;
+
+    std::vector<BSpline> bsplines_vertical;
+    std::vector<BSpline> bsplines_horizontal;
+
+    std::vector<BSpline> bsplines_edges;
 };
 
+void drawHiResBSpline(cv::Mat &img, int img_offset_x, int img_offset_y, BSpline bspline, double t0, double t1, double scale, double resolution);
 void drawBSpline(cv::Mat &lines, BSpline bspline);
+void fillImageLines(cv::Mat &img);

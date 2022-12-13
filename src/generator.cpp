@@ -2,13 +2,22 @@
 
 int main ()
 {
-    std::srand(50);
+    std::srand(std::time(0));
 
     Puzzle puzzle;
-    puzzle.addPuzzleImg("../tests/big_test.png");
-    puzzle.findPuzzleDims(100);
+    std::cout << "Loading image...\n";
+    puzzle.addPuzzleImg("../tests/test.png");
+    std::cout << "Done!\n";
+    std::cout << "Finding puzzle dimensions...\n";
+    puzzle.findPuzzleDims(4000);
+    std::cout << "Done!\n";
+    std::cout << "Drawing puzzle lines...\n";
     puzzle.drawPuzzleLines("classic");
-    puzzle.cutPuzzle();
+    std::cout << "Done!\n";
+    //puzzle.cutPuzzle();
+    std::cout << "Cutting puzzle...\n";
+    puzzle.cutPuzzleHiRes();
+    std::cout << "Done!\n";
     //puzzle.showImg();
     puzzle.saveLines();
 
@@ -110,8 +119,7 @@ void Puzzle::drawPuzzleLinesClassic(cv::Mat &lines)
             bspline_control_points.insert(bspline_control_points.end(), std::make_move_iterator(points.begin()), std::make_move_iterator(points.end()));
         }
 
-        BSpline my_spline(bspline_control_points);
-        drawBSpline(lines, my_spline);
+        bsplines_vertical.push_back(BSpline(bspline_control_points));
     }
 
     // horizontal lines
@@ -125,8 +133,17 @@ void Puzzle::drawPuzzleLinesClassic(cv::Mat &lines)
             bspline_control_points.insert(bspline_control_points.end(), std::make_move_iterator(points.begin()), std::make_move_iterator(points.end()));
         }
 
-        BSpline my_spline(bspline_control_points);
-        drawBSpline(lines, my_spline);
+        bsplines_horizontal.push_back(BSpline(bspline_control_points));
+    }
+
+    for (auto &bspline : bsplines_vertical)
+    {
+        drawBSpline(lines, bspline);
+    }
+
+    for (auto &bspline : bsplines_horizontal)
+    {
+        drawBSpline(lines, bspline);
     }
 }
 
@@ -190,25 +207,23 @@ void Puzzle::drawPuzzleLinesWonkyStraight(cv::Mat &lines)
 
 void Puzzle::drawPuzzleEdges(cv::Mat &lines)
 {
-    // top
-    cv::Point2d point1(0, 0);
-    cv::Point2d point2(puzzle_width*pieceSideLength, 0);
-    cv::line(lines, point1, point2, (0,0,0));
+    std::vector<double> top_left = { 0, 0 };
+    std::vector<double> top_right = { puzzle_width*pieceSideLength, 0 };
+    std::vector<double> bottom_left = { 0, puzzle_height*pieceSideLength };
+    std::vector<double> bottom_right = { puzzle_width*pieceSideLength, puzzle_height*pieceSideLength };
 
-    // bottom
-    point1 = cv::Point2d(0, puzzle_height*pieceSideLength);
-    point2 = cv::Point2d(puzzle_width*pieceSideLength, puzzle_height*pieceSideLength);
-    cv::line(lines, point1, point2, (0,0,0));
+    BSpline bspline_top(std::vector<std::vector<double>>{ top_left, top_right });
+    BSpline bspline_bottom(std::vector<std::vector<double>>{ bottom_left, bottom_right });
+    BSpline bspline_left(std::vector<std::vector<double>>{ top_left, bottom_left });
+    BSpline bspline_right(std::vector<std::vector<double>>{ top_right, bottom_right });
 
-    // left
-    point1 = cv::Point2d(0, 0);
-    point2 = cv::Point2d(0, puzzle_height*pieceSideLength);
-    cv::line(lines, point1, point2, (0,0,0));
+    bsplines_edges = { bspline_top, bspline_bottom, bspline_left, bspline_right };
 
-    // right
-    point1 = cv::Point2d(puzzle_width*pieceSideLength, 0);
-    point2 = cv::Point2d(puzzle_width*pieceSideLength, puzzle_height*pieceSideLength);
-    cv::line(lines, point1, point2, (0,0,0));
+    // draw
+    drawBSpline(lines, bspline_top);
+    drawBSpline(lines, bspline_bottom);
+    drawBSpline(lines, bspline_left);
+    drawBSpline(lines, bspline_right);
 }
 
 int Puzzle::randomOffset(int max_deviation)
@@ -250,6 +265,148 @@ void Puzzle::cutPuzzle()
     }
 }
 
+void Puzzle::cutPuzzleHiRes()
+{
+    int piece_num = 0;
+    int maximum_piece_side_length = pieceSideLength*2;
+
+    double target_res = 1078;
+    double scale = target_res/maximum_piece_side_length;
+
+    double time_per_side = 7; // how many bspline time sections are in each puzzle piece side
+
+    // iterate each central puzzle piece
+    for (int x = -1; x < puzzle_width - 1; ++x)
+    {
+        BSpline left_spline;
+        BSpline right_spline;
+
+        // left edge special case
+        if (x == -1)
+        {
+            right_spline = bsplines_vertical[0];
+        }
+        // right edge special case
+        else if (x == puzzle_width - 2)
+        {
+            left_spline = bsplines_vertical.back();
+        }
+        else
+        {
+            left_spline = bsplines_vertical[x];
+            right_spline = bsplines_vertical[x+1];
+        }
+
+        double vertical_time_period_start = 1;
+
+        for (int y = -1; y < puzzle_height - 1; ++y)
+        {
+            BSpline top_spline;
+            BSpline bottom_spline;
+            // top edge special case
+            if (y == -1)
+            {
+                bottom_spline = bsplines_horizontal[0];
+            }
+            // bottom edge special case
+            else if (y == puzzle_height-2) {
+                top_spline = bsplines_horizontal.back();
+            }
+            else
+            {
+                top_spline = bsplines_horizontal[y];
+                bottom_spline = bsplines_horizontal[y+1];
+            }
+
+            double horizontal_time_period_start = ((x+1)*time_per_side)+1;
+
+            cv::Mat new_piece(maximum_piece_side_length*scale, maximum_piece_side_length*scale, CV_8U, cv::Scalar(0));
+
+            double top_left_x = (x+1)*pieceSideLength - pieceSideLength/2;
+            double top_left_y = (y+1)*pieceSideLength - pieceSideLength/2;
+
+            if (x == -1)
+            {
+                cv::Point point1(pieceSideLength/2 * scale, 10);
+                cv::Point point2(pieceSideLength/2 * scale, maximum_piece_side_length*scale - 10);
+                cv::line(new_piece, point1, point2, cv::Scalar(255));
+            }
+            else
+            {
+                drawHiResBSpline(new_piece, 
+                            top_left_x, 
+                            top_left_y, 
+                            left_spline, 
+                            vertical_time_period_start, 
+                            vertical_time_period_start+time_per_side+1, 
+                            scale, 0.05);
+            }
+
+            if (x == puzzle_width-2)
+            {
+                cv::Point point1(3*pieceSideLength/2 * scale, 10);
+                cv::Point point2(3*pieceSideLength/2 * scale, maximum_piece_side_length*scale - 10);
+                cv::line(new_piece, point1, point2, cv::Scalar(255));
+            }
+            else
+            {
+                drawHiResBSpline(new_piece, 
+                                top_left_x, 
+                                top_left_y, 
+                                right_spline, 
+                                vertical_time_period_start, 
+                                vertical_time_period_start+time_per_side+1,
+                                scale, 0.05);
+            }
+
+            if (y == -1)
+            {
+                cv::Point point1(10, pieceSideLength/2 * scale);
+                cv::Point point2(maximum_piece_side_length*scale - 10, pieceSideLength/2 * scale);
+                cv::line(new_piece, point1, point2, cv::Scalar(255));
+            }
+            else
+            {
+                drawHiResBSpline(new_piece, 
+                                top_left_x, 
+                                top_left_y, 
+                                top_spline, 
+                                horizontal_time_period_start, 
+                                horizontal_time_period_start+time_per_side+1, 
+                                scale, 0.05);
+            }
+
+            if (y == puzzle_height-2)
+            {
+                cv::Point point1(10, 3*pieceSideLength/2 * scale);
+                cv::Point point2(maximum_piece_side_length*scale - 10, 3*pieceSideLength/2 * scale);
+                cv::line(new_piece, point1, point2, cv::Scalar(255));
+            }
+            else
+            {
+                drawHiResBSpline(new_piece, 
+                                top_left_x, 
+                                top_left_y, 
+                                bottom_spline, 
+                                horizontal_time_period_start, 
+                                horizontal_time_period_start+time_per_side+1, 
+                                scale, 0.05);
+            }
+
+            horizontal_time_period_start += time_per_side;
+            vertical_time_period_start += time_per_side;
+
+            fillImageLines(new_piece);
+
+            // write out
+            std::string piece_name = "../output_pieces/piece" + std::to_string(piece_num) + ".png";
+            cv::imwrite(piece_name, new_piece);
+            piece_num++;
+        }
+        vertical_time_period_start += time_per_side;
+    }
+}
+
 void Puzzle::showImg()
 {
     cv::imshow("Puzzle", img);
@@ -260,6 +417,35 @@ void Puzzle::showImg()
 void Puzzle::saveLines()
 {
     cv::imwrite("puzzleOutput.png", lines);
+}
+
+void drawHiResBSpline(cv::Mat &img, int img_offset_x, int img_offset_y, BSpline bspline, double t0, double t1, double scale, double resolution)
+{
+    // get curve points
+    std::vector<std::vector<double>> result_points;
+
+    for (double t = t0; t < t1; t+=resolution)
+    {
+        std::vector<double> new_point = bspline.evalBSpline(t);
+
+        // increase resolution
+        new_point[0] *= scale;
+        new_point[1] *= scale;
+
+        result_points.push_back(new_point);
+    }
+
+    // convert vector double points to pixel points
+    cv::Mat pixel_points;
+
+    for (auto &point : result_points)
+    {
+        pixel_points.push_back(cv::Point (point[0] - (img_offset_x*scale), point[1] - (img_offset_y*scale)));
+        //pixel_points.push_back(cv::Point (point[0], point[1]));
+    }
+
+    // draw
+    cv::polylines(img, pixel_points, false, cv::Scalar(255));
 }
 
 void drawBSpline(cv::Mat &lines, BSpline bspline)
@@ -283,6 +469,21 @@ void drawBSpline(cv::Mat &lines, BSpline bspline)
 
     // draw
     cv::polylines(lines, pixel_points, false, cv::Scalar(0));
+}
+
+void fillImageLines(cv::Mat &img)
+{
+    // flood fill, threshold, non zero, bound and crop to get single piece
+    cv::Mat current_piece, threshold, points;
+    cv::floodFill(img, current_piece, cv::Point(img.size().width/2, img.size().height/2), cv::Scalar(), 0, cv::Scalar(), cv::Scalar(), 4 | cv::FLOODFILL_MASK_ONLY | (255 << 8));
+    cv::threshold(current_piece, threshold, 254, 255, cv::THRESH_BINARY);
+    cv::findNonZero(threshold, points);
+
+    // crop image
+    //cv::Rect bounds = cv::boundingRect(threshold);
+    //current_piece = cv::Mat(current_piece, bounds);
+
+    img = threshold;
 }
 
 std::vector<std::vector<double>> Puzzle::genPuzzleShapePoints(double x, double y, bool vertical)
