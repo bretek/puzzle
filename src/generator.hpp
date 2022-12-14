@@ -45,6 +45,7 @@ class Puzzle
     std::vector<BSpline> bsplines_edges;
 };
 
+int generatePuzzle();
 void drawHiResBSpline(cv::Mat &img, int img_offset_x, int img_offset_y, BSpline bspline, double t0, double t1, double scale, double resolution);
 void drawBSpline(cv::Mat &lines, BSpline bspline);
 void fillImageLines(cv::Mat &img);

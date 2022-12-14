@@ -1,6 +1,6 @@
 #include "generator.hpp"
 
-int main ()
+int generatePuzzle()
 {
     std::srand(std::time(0));
 
@@ -9,7 +9,7 @@ int main ()
     puzzle.addPuzzleImg("../tests/test.png");
     std::cout << "Done!\n";
     std::cout << "Finding puzzle dimensions...\n";
-    puzzle.findPuzzleDims(4000);
+    puzzle.findPuzzleDims(1000);
     std::cout << "Done!\n";
     std::cout << "Drawing puzzle lines...\n";
     puzzle.drawPuzzleLines("classic");
