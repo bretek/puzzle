@@ -9,7 +9,7 @@ int generatePuzzle()
     puzzle.addPuzzleImg("../tests/test.png");
     std::cout << "Done!\n";
     std::cout << "Finding puzzle dimensions...\n";
-    puzzle.findPuzzleDims(1000);
+    puzzle.findPuzzleDims(50);
     std::cout << "Done!\n";
     std::cout << "Drawing puzzle lines...\n";
     puzzle.drawPuzzleLines("classic");

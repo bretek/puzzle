@@ -1,7 +1,9 @@
 #include "generator.hpp"
+#include "solver.hpp"
 
 int main()
 {
-    generatePuzzle();
+    //generatePuzzle();
+    solvePuzzle();
     return 0;
 }
