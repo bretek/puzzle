@@ -52,27 +52,26 @@ template <typename T>
 class TreeNode
 {
     public:
-    TreeNode(TreeNode<T>* parent, T value);
-    TreeNode<T>* parent;
+    TreeNode(std::shared_ptr<TreeNode<T>> parent, T value);
+    std::shared_ptr<TreeNode<T>> parent;
     T value;
-    std::vector<TreeNode<T>*> children;
+    std::vector<std::shared_ptr<TreeNode<T>>> children;
 };
 
 template <typename T>
 class Tree
 {
     public:
-    TreeNode<T>* root_node;
+    std::shared_ptr<TreeNode<T>> root_node;
 
-    Tree(TreeNode<T>* root_node);
-    void insertNode(TreeNode<T>* parent, TreeNode<T>* new_node);
-    void removeNode(TreeNode<T>* node);
+    Tree(std::shared_ptr<TreeNode<T>> root_node);
+    void insertNode(std::shared_ptr<TreeNode<T>> parent, std::shared_ptr<TreeNode<T>> new_node);
+    void removeNode(std::shared_ptr<TreeNode<T>> node);
     private:
-    std::vector<TreeNode<T>*> nodes;
+    std::vector<std::shared_ptr<TreeNode<T>>> nodes;
 };
 
-int createPossiblePieceTreeChildren(TreeNode<std::shared_ptr<PuzzlePiece>>* node, 
-                                    Tree<std::shared_ptr<PuzzlePiece>>* tree, 
+int createPossiblePieceTreeChildren(TreeNode<PlacedPiece>* node, 
                                     std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> matching_edges, 
                                     int direction);
 
@@ -85,7 +84,7 @@ int detect_piece_type(std::shared_ptr<PuzzlePiece> piece);
 bool isSpaceOccupied(Tree<PlacedPiece>* tree, int x, int y);
 
 std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePiece>> pieces);
-std::vector<PlacedPiece> solvePuzzleEdge(std::vector<std::shared_ptr<PuzzlePiece>> pieces);
+std::shared_ptr<Tree<PlacedPiece>> solvePuzzleEdge(std::vector<std::shared_ptr<PuzzlePiece>> pieces);
 
 void rotatePiece(std::shared_ptr<PuzzlePiece> piece);
 
