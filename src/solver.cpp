@@ -1,9 +1,20 @@
 #include "solver.hpp"
 
-#define PIECE_SIMILARITY_THRESHOLD 0.94
+#define PIECE_SIMILARITY_THRESHOLD 0.95
 
 int solvePuzzle()
 {
+    /*
+    std::shared_ptr<PuzzlePiece> piece15 = findPieceEdges("../output_pieces/piece15.png");
+    std::shared_ptr<PuzzlePiece> piece14 = findPieceEdges("../output_pieces/piece14.png");
+
+    std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> matching_edge = findMatchingEdges(
+                                    piece15->edges[i%4], 
+                                    std::vector<std::shared_ptr<PuzzlePiece>>{{ piece14 }});
+    std::cout << std::get<1>(matching_edge[0]) << std::endl;
+    */
+    
+    ///*
     std::cout << "Reading in puzzle pieces..." << std::endl;
     std::vector<std::shared_ptr<PuzzlePiece>> pieces = findEdgesFromImages("../output_pieces");
     std::cout << "Done!" << std::endl;
@@ -13,6 +24,7 @@ int solvePuzzle()
     std::cout << "Done!" << std::endl;
 
     showSolvedPuzzle(placed_pieces);
+    //*/
 
     return 0;
 }
@@ -426,7 +438,7 @@ int createPossiblePieceTreeChildren(std::shared_ptr<TreeNode<PlacedPiece>> node,
         if (matched_piece->edges[(matched_edge->edge_side + 3) % 4]->edge_type == FLAT_EDGE)
         {
             num_matches++;
-            while (matched_edge->edge_side != (direction + 2) % 4 || matched_piece->edges[(direction + 1) % 4]->edge_type != FLAT_EDGE)
+            while (matched_edge->edge_side != (direction + 2) % 4) // || matched_piece->edges[(direction + 1) % 4]->edge_type != FLAT_EDGE)
             {
                 rotatePiece(matched_piece);
             }
@@ -575,18 +587,30 @@ std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> findMatchingEdges(st
 
     for (auto piece : all_pieces)
     {
-        //std::cout << "\nComparing piece " << current_edge->piece->id << " with piece " << piece->id << "\n";
         for (auto edge : piece->edges)
         {
-            float edge_similarity = compareEdges(*edge, *current_edge);
-            //std::cout << edge_similarity << ", ";
+            float edge_similarity = 0;
+            for (int rotation_1 = 0; rotation_1 < 4; ++rotation_1)
+            {
+                for (int rotation_2 = 0; rotation_2 < 4; ++rotation_2)
+                {
+                    float similarity = compareEdges(*edge, *current_edge);
+                    if (similarity > edge_similarity)
+                    {
+                        edge_similarity = similarity;
+                    }
+                    // smallest_difference = difference < smallest_difference ? difference : smallest_difference;
+                    cv::rotate(edge->edge_mat, edge->edge_mat, cv::ROTATE_90_COUNTERCLOCKWISE);
+                }
+                cv::rotate(current_edge->edge_mat, current_edge->edge_mat, cv::ROTATE_90_COUNTERCLOCKWISE);
+            }
+            //float edge_similarity = compareEdges(*edge, *current_edge);
 
-            if (edge_similarity > PIECE_SIMILARITY_THRESHOLD)// && &edge != &current_edge)
+            if (edge_similarity > PIECE_SIMILARITY_THRESHOLD)
             {
                 matching_edges.push_back(std::tuple(edge, edge_similarity));
             }
         }
-        //std::cout << "\n\n";
     }
 
     // sort by similarity
@@ -637,6 +661,7 @@ float compareEdges(PuzzleEdge edge1, PuzzleEdge edge2)
     int min_height = std::min(edge1Size.height, edge2Size.height);
     int min_width = std::min(edge1Size.width, edge2Size.width);
     cv::Rect crop(0,0,min_width,min_height);
+
     float smallest_difference = getLineImageDifference(edge1.edge_mat(crop), rotated_edge2_mat(crop));
 
     return 1.0 - smallest_difference;
