@@ -1,16 +1,19 @@
 #include "solver.hpp"
 
-#define PIECE_SIMILARITY_THRESHOLD 0.95
+#define PIECE_SIMILARITY_THRESHOLD 0.9
 
 int solvePuzzle()
 {
     /*
-    std::shared_ptr<PuzzlePiece> piece15 = findPieceEdges("../output_pieces/piece15.png");
-    std::shared_ptr<PuzzlePiece> piece14 = findPieceEdges("../output_pieces/piece14.png");
+    std::shared_ptr<PuzzlePiece> piece12 = findPieceEdges("../output_pieces/piece12.png");
+    std::shared_ptr<PuzzlePiece> piece1 = findPieceEdges("../output_pieces/piece1.png");
+
+    rotatePiece(piece1);
+    rotatePiece(piece1);
 
     std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> matching_edge = findMatchingEdges(
-                                    piece15->edges[i%4], 
-                                    std::vector<std::shared_ptr<PuzzlePiece>>{{ piece14 }});
+                                    piece1->edges[2], 
+                                    std::vector<std::shared_ptr<PuzzlePiece>>{{ piece12 }});
     std::cout << std::get<1>(matching_edge[0]) << std::endl;
     */
     
@@ -210,6 +213,15 @@ std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePie
     std::shared_ptr<Tree<PlacedPiece>> placed_pieces_tree = solvePuzzleEdge(pieces);
     std::shared_ptr<TreeNode<PlacedPiece>> current_node = placed_pieces_tree->root_node;
 
+    // find bottom of tree, going past this point will start modifying border
+    std::shared_ptr<TreeNode<PlacedPiece>> end_edge_node = current_node;
+    while (end_edge_node->children.size() != 0)
+    {
+        end_edge_node = end_edge_node->children[0];
+    }
+    
+    return placeTreePieces(placed_pieces_tree);
+
     while (current_node->children.size() != 0)
     {
         std::shared_ptr<PuzzlePiece> placed_piece = std::get<0>(current_node->value);
@@ -331,7 +343,7 @@ std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePie
                     current_node = temp_node;
                 }
 
-                if (current_node->parent == nullptr)
+                if (current_node->parent == nullptr || current_node == end_edge_node)
                 {
                     std::cout << "ABORT: No solution found" << std::endl;
                     current_node->children.clear();
@@ -350,6 +362,7 @@ std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePie
             std::cout << "Pushing node: " << current_piece->id << std::endl;
 
             // rotate again
+            /*
             std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> matching_edge = findMatchingEdges(std::get<0>(current_node->parent->value)->edges[direction], std::vector<std::shared_ptr<PuzzlePiece>>{{ current_piece }});
             std::shared_ptr<PuzzleEdge> matched_edge = std::get<0>(matching_edge[0]);
             std::shared_ptr<PuzzlePiece> matched_piece = matched_edge->piece;
@@ -357,6 +370,7 @@ std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePie
             {
                 rotatePiece(matched_piece);
             }
+            */
 
             // place
             pieces.erase(std::remove(pieces.begin(), pieces.end(), current_piece), pieces.end());
@@ -536,15 +550,6 @@ std::shared_ptr<Tree<PlacedPiece>> solvePuzzleEdge(std::vector<std::shared_ptr<P
             current_piece = std::get<0>(current_node->value);
             std::cout << "Pushing node: " << current_piece->id << std::endl;
 
-            // rotate again
-            std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> matching_edge = findMatchingEdges(std::get<0>(current_node->parent->value)->edges[direction], std::vector<std::shared_ptr<PuzzlePiece>>{{ current_piece }});
-            std::shared_ptr<PuzzleEdge> matched_edge = std::get<0>(matching_edge[0]);
-            std::shared_ptr<PuzzlePiece> matched_piece = matched_edge->piece;
-            while (matched_edge->edge_side != (direction + 2) % 4 || matched_piece->edges[(direction + 1) % 4]->edge_type != FLAT_EDGE)
-            {
-                rotatePiece(matched_piece);
-            }
-
             // place
             remaining_edges.erase(std::remove(remaining_edges.begin(), remaining_edges.end(), current_piece), remaining_edges.end());
             if (current_piece->piece_type == CORNER_PIECE)
@@ -590,21 +595,16 @@ std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> findMatchingEdges(st
         for (auto edge : piece->edges)
         {
             float edge_similarity = 0;
-            for (int rotation_1 = 0; rotation_1 < 4; ++rotation_1)
+
+            for (int rotation_2 = 0; rotation_2 < 4; ++rotation_2)
             {
-                for (int rotation_2 = 0; rotation_2 < 4; ++rotation_2)
+                float similarity = compareEdges(*edge, *current_edge);
+                if (similarity > edge_similarity)
                 {
-                    float similarity = compareEdges(*edge, *current_edge);
-                    if (similarity > edge_similarity)
-                    {
-                        edge_similarity = similarity;
-                    }
-                    // smallest_difference = difference < smallest_difference ? difference : smallest_difference;
-                    cv::rotate(edge->edge_mat, edge->edge_mat, cv::ROTATE_90_COUNTERCLOCKWISE);
+                    edge_similarity = similarity;
                 }
-                cv::rotate(current_edge->edge_mat, current_edge->edge_mat, cv::ROTATE_90_COUNTERCLOCKWISE);
+                cv::rotate(edge->edge_mat, edge->edge_mat, cv::ROTATE_90_COUNTERCLOCKWISE);
             }
-            //float edge_similarity = compareEdges(*edge, *current_edge);
 
             if (edge_similarity > PIECE_SIMILARITY_THRESHOLD)
             {
