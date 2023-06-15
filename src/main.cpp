@@ -3,7 +3,7 @@
 
 int main()
 {
-    //generatePuzzle();
-    solvePuzzle();
+    generatePuzzle("../tests/test.png", 50);
+    //solvePuzzle();
     return 0;
 }

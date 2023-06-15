@@ -1,27 +1,30 @@
 #include "generator.hpp"
 
-int generatePuzzle()
+// the output x and y resolution of each jigsaw piece image, -2
+#define TARGET_RES 1078
+
+void generatePuzzle(std::string ratio_goal_image, int num_pieces_goal)
 {
     std::srand(std::time(0));
 
     Puzzle puzzle;
     std::cout << "Loading image...\n";
-    puzzle.addPuzzleImg("../tests/test.png");
+    puzzle.addPuzzleImg(ratio_goal_image);
     std::cout << "Done!\n";
+
     std::cout << "Finding puzzle dimensions...\n";
-    puzzle.findPuzzleDims(50);
+    puzzle.findPuzzleDims(num_pieces_goal);
     std::cout << "Done!\n";
+
     std::cout << "Drawing puzzle lines...\n";
     puzzle.drawPuzzleLines("classic");
     std::cout << "Done!\n";
-    //puzzle.cutPuzzle();
+
     std::cout << "Cutting puzzle...\n";
     puzzle.cutPuzzleHiRes();
     std::cout << "Done!\n";
-    //puzzle.showImg();
-    puzzle.saveLines();
 
-    return 0;
+    puzzle.saveLines();
 }
 
 void Puzzle::addPuzzleImg(std::string puzzle_image)
@@ -270,8 +273,7 @@ void Puzzle::cutPuzzleHiRes()
     int piece_num = 0;
     int maximum_piece_side_length = pieceSideLength*2;
 
-    double target_res = 1078;
-    double scale = target_res/maximum_piece_side_length;
+    double scale = TARGET_RES/maximum_piece_side_length;
 
     double time_per_side = 7; // how many bspline time sections are in each puzzle piece side
 
