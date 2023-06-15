@@ -30,7 +30,7 @@ std::vector<cv::Mat> splitContourAtPoints(std::vector<cv::Point> contour, std::v
             edge_index++;
             if (edge_index < points.size())
             {
-                splitContours.push_back(cv::Mat(1000, 1000, CV_8U, cv::Scalar(0)));
+                splitContours.push_back(cv::Mat(mat_size, CV_8U, cv::Scalar(0)));
             }
         }
     }
