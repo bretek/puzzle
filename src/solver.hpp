@@ -84,7 +84,7 @@ int detect_piece_type(std::shared_ptr<PuzzlePiece> piece);
 bool isSpaceOccupied(Tree<PlacedPiece>* tree, int x, int y);
 
 std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePiece>> pieces);
-std::shared_ptr<Tree<PlacedPiece>> solvePuzzleEdge(std::vector<std::shared_ptr<PuzzlePiece>> pieces);
+std::vector<PlacedPiece> solvePuzzleEdge(std::vector<std::shared_ptr<PuzzlePiece>> pieces);
 
 void rotatePiece(std::shared_ptr<PuzzlePiece> piece);
 

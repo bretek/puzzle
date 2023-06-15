@@ -1,23 +1,23 @@
 #include "solver.hpp"
 
-#define PIECE_SIMILARITY_THRESHOLD 0.9
+#define PIECE_SIMILARITY_THRESHOLD 0.94
 
 int solvePuzzle()
 {
     /*
-    std::shared_ptr<PuzzlePiece> piece12 = findPieceEdges("../output_pieces/piece12.png");
+    std::shared_ptr<PuzzlePiece> piece2 = findPieceEdges("../output_pieces/piece0.png");
     std::shared_ptr<PuzzlePiece> piece1 = findPieceEdges("../output_pieces/piece1.png");
 
-    rotatePiece(piece1);
-    rotatePiece(piece1);
+    //rotatePiece(piece1);
+    //rotatePiece(piece1);
 
     std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> matching_edge = findMatchingEdges(
                                     piece1->edges[2], 
-                                    std::vector<std::shared_ptr<PuzzlePiece>>{{ piece12 }});
+                                    std::vector<std::shared_ptr<PuzzlePiece>>{{ piece2 }});
     std::cout << std::get<1>(matching_edge[0]) << std::endl;
     */
     
-    ///*
+    //*
     std::cout << "Reading in puzzle pieces..." << std::endl;
     std::vector<std::shared_ptr<PuzzlePiece>> pieces = findEdgesFromImages("../output_pieces");
     std::cout << "Done!" << std::endl;
@@ -108,13 +108,48 @@ std::shared_ptr<PuzzlePiece> findPieceEdges(std::filesystem::path image_path)
     {
         std::shared_ptr<PuzzleEdge> edge(new PuzzleEdge);
         edge->edge_type = detectEdgeType(puzzle_edges[edge_num], puzzle_piece_corners_rect);
-        edge->edge_side = edge_num;
+
+        int edge_side = 0;
+        cv::Mat labels2, stats2, centroids2;
+        cv::connectedComponentsWithStats(puzzle_edges[edge_num], labels2, stats2, centroids2);
+        //std::cout << centroids2.row(1) << "\n";
+        //std::cout << centroids2.at<double>(1, 1) << "\n";
+        if (centroids2.at<double>(1, 0) < 230)
+        {
+            edge->edge_side = LEFT_EDGE;
+        }
+        else if (centroids2.at<double>(1, 0) > 370)
+        {
+            edge->edge_side = RIGHT_EDGE;
+        }
+        else if (centroids2.at<double>(1, 1) < 230)
+        {
+            edge->edge_side = TOP_EDGE;
+        }
+        else if (centroids2.at<double>(1, 1) > 370)
+        {
+            edge->edge_side = BOTTOM_EDGE;
+        }
+
         cv::Rect bound_rect = cv::boundingRect(puzzle_edges[edge_num]);
 
         // crop
         edge->edge_mat = cv::Mat(puzzle_edges[edge_num], bound_rect);
         edge->piece = piece;
         piece->edges.push_back(edge);
+    }
+
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = i+1; j < 4; j++)
+        {
+            if (piece->edges[j]->edge_side == i)
+            {
+                std::shared_ptr<PuzzleEdge> temp = piece->edges[i];
+                piece->edges[i] = piece->edges[j];
+                piece->edges[j] = temp;
+            }
+        }
     }
 
     // set piece type
@@ -191,26 +226,41 @@ bool isSpaceOccupied(std::shared_ptr<Tree<PlacedPiece>> tree, int x, int y)
     return false;
 }
 
-std::vector<PlacedPiece> placeTreePieces(std::shared_ptr<Tree<PlacedPiece>> placed_pieces_tree)
+std::vector<PlacedPiece> placeTreePieces(std::shared_ptr<Tree<PlacedPiece>> placed_pieces_tree, std::shared_ptr<TreeNode<PlacedPiece>> end_node)
 {
     // place pieces depth first
     std::vector<PlacedPiece> placed_pieces(0);
 
-    std::shared_ptr<TreeNode<PlacedPiece>> current_node = placed_pieces_tree->root_node;
-    placed_pieces.push_back(current_node->value);
-
-    while (current_node->children.size() != 0)
+    std::shared_ptr<TreeNode<PlacedPiece>> current_node = end_node;
+    while (current_node->parent != nullptr)
     {
-        current_node = current_node->children[0];
         placed_pieces.push_back(current_node->value);
+        current_node = current_node->parent;
     }
+    placed_pieces.push_back(current_node->value);
 
     return placed_pieces;
 }
 
+void printCurrentTree(std::shared_ptr<Tree<PlacedPiece>> placed_pieces_tree, std::shared_ptr<TreeNode<PlacedPiece>> end_node)
+{
+    std::cout << "Current tree state:\n";
+    std::shared_ptr<TreeNode<PlacedPiece>> current_node = end_node;
+    while (current_node->parent != nullptr)
+    {
+        std::cout << std::get<0>(current_node->value)->id << '\n';
+        current_node = current_node->parent;
+    }
+    std::cout << std::get<0>(current_node->value)->id << '\n';
+}
+
 std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePiece>> pieces)
 {
-    std::shared_ptr<Tree<PlacedPiece>> placed_pieces_tree = solvePuzzleEdge(pieces);
+    //std::shared_ptr<Tree<PlacedPiece>> placed_pieces_tree = solvePuzzleEdge(pieces);
+
+    return solvePuzzleEdge(pieces);
+
+    /*
     std::shared_ptr<TreeNode<PlacedPiece>> current_node = placed_pieces_tree->root_node;
 
     // find bottom of tree, going past this point will start modifying border
@@ -361,17 +411,6 @@ std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePie
             current_piece = std::get<0>(current_node->value);
             std::cout << "Pushing node: " << current_piece->id << std::endl;
 
-            // rotate again
-            /*
-            std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> matching_edge = findMatchingEdges(std::get<0>(current_node->parent->value)->edges[direction], std::vector<std::shared_ptr<PuzzlePiece>>{{ current_piece }});
-            std::shared_ptr<PuzzleEdge> matched_edge = std::get<0>(matching_edge[0]);
-            std::shared_ptr<PuzzlePiece> matched_piece = matched_edge->piece;
-            while (matched_edge->edge_side != (direction + 2) % 4)
-            {
-                rotatePiece(matched_piece);
-            }
-            */
-
             // place
             pieces.erase(std::remove(pieces.begin(), pieces.end(), current_piece), pieces.end());
 
@@ -402,18 +441,24 @@ std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePie
     }
 
     return placeTreePieces(placed_pieces_tree);
+    */
 }
 
-int createPossiblePieceTreeChildren(std::shared_ptr<TreeNode<PlacedPiece>> node, 
+std::vector<std::shared_ptr<TreeNode<PlacedPiece>>> createNodeChildren(std::shared_ptr<TreeNode<PlacedPiece>> node, 
                                     std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> matching_edges, 
                                     int direction)
 {
-    if (matching_edges.size() == 0)
+    if (std::get<0>(node->value)->id == "../output_pieces/piece1.png")
     {
-        return -1;
+        
     }
 
-    int num_matches = 0;
+    std::vector<std::shared_ptr<TreeNode<PlacedPiece>>> children(0);
+    
+    if (matching_edges.size() == 0)
+    {
+        return children;
+    }
 
     Coordinate current_coord = std::get<1>(node->value);
     int x = std::get<0>(current_coord);
@@ -437,8 +482,7 @@ int createPossiblePieceTreeChildren(std::shared_ptr<TreeNode<PlacedPiece>> node,
 
     if (x < 0 || y < 0)
     {
-        node->children.clear();
-        return -1;
+        return children;
     }
 
     Coordinate new_coord(x, y);
@@ -449,117 +493,192 @@ int createPossiblePieceTreeChildren(std::shared_ptr<TreeNode<PlacedPiece>> node,
         float match_level = std::get<1>(matching_edges[possible_match_index]);
         std::shared_ptr<PuzzlePiece> matched_piece = matched_edge->piece;
 
-        if (matched_piece->edges[(matched_edge->edge_side + 3) % 4]->edge_type == FLAT_EDGE)
+        if (matched_piece->edges[(4 + matched_edge->edge_side + 3) % 4]->edge_type == FLAT_EDGE)
         {
-            num_matches++;
-            while (matched_edge->edge_side != (direction + 2) % 4) // || matched_piece->edges[(direction + 1) % 4]->edge_type != FLAT_EDGE)
+            while (matched_edge->edge_side != (4 + direction + 2) % 4)
             {
                 rotatePiece(matched_piece);
             }
 
-            std::cout << "Adding child " << matched_piece->id << " with certainty " << match_level << '\n';
-            std::shared_ptr<TreeNode<PlacedPiece>> new_node(new TreeNode<PlacedPiece>(node, PlacedPiece(matched_piece, new_coord)));
-            new_node->parent->children.push_back(new_node);
-        }
-    }
-
-    if (num_matches == 0)
-    {
-        return -1;
-    }
-
-    return 0;
-}
-
-std::shared_ptr<Tree<PlacedPiece>> solvePuzzleEdge(std::vector<std::shared_ptr<PuzzlePiece>> pieces)
-{
-    // identify corners and pieces
-    std::vector<std::shared_ptr<PuzzlePiece>> edges;
-    std::shared_ptr<PuzzlePiece> first_corner(nullptr);
-    for (auto piece : pieces)
-    {
-        if (piece->piece_type == EDGE_PIECE)
-        {
-            edges.push_back(piece);
-        }
-        else if (piece->piece_type == CORNER_PIECE)
-        {
-            if (first_corner == nullptr)
+            // if in bottom left can only place corner
+            if (x == 0 && direction == LEFT_EDGE)
             {
-                first_corner = piece;
+                if (matched_piece->piece_type == CORNER_PIECE)
+                {
+                    std::shared_ptr<TreeNode<PlacedPiece>> new_node(new TreeNode<PlacedPiece>(node, PlacedPiece(matched_piece, new_coord)));
+                    children.push_back(new_node);
+                }
+            }
+            // if placing bottom left corner can only do in bottom left
+            else if (matched_piece->edges[LEFT_EDGE]->edge_type == FLAT_EDGE && matched_piece->edges[BOTTOM_EDGE]->edge_type == FLAT_EDGE)
+            {
+                if (x == 0)
+                {
+                    std::shared_ptr<TreeNode<PlacedPiece>> new_node(new TreeNode<PlacedPiece>(node, PlacedPiece(matched_piece, new_coord)));
+                    children.push_back(new_node);
+                }
             }
             else
             {
-                edges.push_back(piece);
+                //std::cout << "Adding child " << matched_piece->id << " with certainty " << match_level << '\n';
+                std::shared_ptr<TreeNode<PlacedPiece>> new_node(new TreeNode<PlacedPiece>(node, PlacedPiece(matched_piece, new_coord)));
+                children.push_back(new_node);
             }
         }
     }
 
-    // rotate first corner to have flat edges left and top
-    while (first_corner->edges[0]->edge_type != FLAT_EDGE || first_corner->edges[1]->edge_type != FLAT_EDGE)
+    return children;
+}
+
+std::vector<std::shared_ptr<PuzzlePiece>> findEdgePieces(std::vector<std::shared_ptr<PuzzlePiece>> pieces)
+{
+    std::vector<std::shared_ptr<PuzzlePiece>> edges;
+
+    for (auto piece : pieces)
     {
-        rotatePiece(first_corner);
+        if (piece->piece_type == EDGE_PIECE || piece->piece_type == CORNER_PIECE)
+        {
+            edges.push_back(piece);
+        }
     }
 
-    std::shared_ptr<TreeNode<PlacedPiece>> root_node(new TreeNode<PlacedPiece>(nullptr, PlacedPiece(first_corner, Coordinate(0, 0))));
-    std::shared_ptr<TreeNode<PlacedPiece>> current_node = root_node;
-    std::shared_ptr<Tree<PlacedPiece>> placed_pieces_tree(new Tree<PlacedPiece>(current_node));
+    return edges;
+}
 
-    std::vector<std::shared_ptr<PuzzlePiece>> remaining_edges = edges;
-    int direction = RIGHT_EDGE;
-
-    while (remaining_edges.size() > 0)
+std::shared_ptr<PuzzlePiece> findFirstCorner(std::vector<std::shared_ptr<PuzzlePiece>> pieces)
+{
+    std::shared_ptr<PuzzlePiece> first_corner(nullptr);
+    bool firstCornerFound = false;
+    int edge_piece_index = 0;
+    while (!firstCornerFound && edge_piece_index < pieces.size())
     {
-        std::shared_ptr<PuzzlePiece> current_piece = std::get<0>(current_node->value);
-
-        if (current_node->children.size() == 0)
+        if (pieces.at(edge_piece_index)->piece_type == CORNER_PIECE)
         {
-            std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> matching_edges = findMatchingEdges(current_piece->edges[direction], remaining_edges);
-            if (createPossiblePieceTreeChildren(current_node, matching_edges, direction) == -1)
-            {
-                // pop node
-                while(current_node->children.size() == 0 && current_node->parent != nullptr)
-                {
-                    current_piece = std::get<0>(current_node->value);
-                    std::cout << "Popping node: " << current_piece->id << std::endl;
+            first_corner = pieces.at(edge_piece_index);
+            firstCornerFound = true;
+        }
+        edge_piece_index++;
+    }
 
-                    if (current_piece->piece_type == CORNER_PIECE)
-                    {
-                        direction += 1;
-                    }
+    return first_corner;
+}
 
-                    remaining_edges.push_back(current_piece);
-                    std::shared_ptr<TreeNode<PlacedPiece>> temp_node = current_node->parent;
-                    placed_pieces_tree->removeNode(current_node);
-                    current_node = temp_node;
-                }
+std::shared_ptr<TreeNode<PlacedPiece>> findNextNode(std::shared_ptr<Tree<PlacedPiece>> tree, std::shared_ptr<TreeNode<PlacedPiece>> current_node, std::vector<std::shared_ptr<PuzzlePiece>> *edges)
+{
+    if (current_node->children.size() != 0)
+    {
+        edges->erase(std::remove(edges->begin(), edges->end(), std::get<0>(current_node->value)), edges->end());
+        return current_node->children[0];
+    }
 
-                if (current_node->parent == nullptr)
-                {
-                    std::cout << "ABORT: No solution found" << std::endl;
-                    current_node->children.clear();
-                    remaining_edges.clear();
-                    std::exit(-1);
-                }
-            }
+    std::shared_ptr<TreeNode<PlacedPiece>> new_node = current_node;
+
+    // go up till new route
+    bool found;
+    while (!found)
+    {
+        edges->push_back(std::get<0>(new_node->value));
+
+        if (new_node->parent == nullptr)
+        {
+            return nullptr;
+        }
+
+        int index = std::distance(new_node->parent->children.begin(), std::find(new_node->parent->children.begin(), new_node->parent->children.end(), new_node));
+        if (new_node->parent->children.size() > index + 1)
+        {
+            new_node = new_node->parent->children[index+1];
+            found = true;
         }
         else
         {
-            // move to leftmost child
-            current_node = current_node->children[0];
-            current_piece = std::get<0>(current_node->value);
-            std::cout << "Pushing node: " << current_piece->id << std::endl;
-
-            // place
-            remaining_edges.erase(std::remove(remaining_edges.begin(), remaining_edges.end(), current_piece), remaining_edges.end());
-            if (current_piece->piece_type == CORNER_PIECE)
-            {
-                direction -= 1;
-            }
+            new_node = new_node->parent;
         }
     }
 
-    return placed_pieces_tree;
+    // go down depth first
+    while (new_node->children.size() != 0)
+    {
+        edges->erase(std::remove(edges->begin(), edges->end(), std::get<0>(new_node->value)), edges->end());
+        new_node = new_node->children[0];
+    }
+
+    return new_node;
+}
+
+int findDirection(std::shared_ptr<PuzzlePiece> piece)
+{
+    int side = 0;
+    while (piece->edges[side]->edge_type != FLAT_EDGE)
+    {
+        side++;
+    }
+
+    if (piece->edges[(4 + side - 1) % 4]->edge_type == FLAT_EDGE)
+    {
+        side--;
+    }
+
+    int direction = (4 + side - 1) % 4;
+
+    return direction;
+}
+
+std::vector<PlacedPiece> solvePuzzleEdge(std::vector<std::shared_ptr<PuzzlePiece>> pieces)
+{
+    // identify corners and pieces
+    std::vector<std::shared_ptr<PuzzlePiece>> edges = findEdgePieces(pieces);
+    std::shared_ptr<PuzzlePiece> first_corner = findFirstCorner(edges);
+
+    // rotate first corner to have flat edges left and top
+    while (first_corner->edges[TOP_EDGE]->edge_type != FLAT_EDGE || first_corner->edges[LEFT_EDGE]->edge_type != FLAT_EDGE)
+    {
+        rotatePiece(first_corner);
+    }
+    edges.erase(std::remove(edges.begin(), edges.end(), first_corner), edges.end());
+
+    // setup tree
+    std::shared_ptr<TreeNode<PlacedPiece>> current_node(new TreeNode<PlacedPiece>(nullptr, PlacedPiece(first_corner, Coordinate(0, 0))));
+    std::shared_ptr<Tree<PlacedPiece>> tree(new Tree<PlacedPiece>(current_node));
+
+    while (edges.size() > 0)
+    {
+        std::shared_ptr<PuzzlePiece> current_piece = std::get<0>(current_node->value);
+
+        int direction = findDirection(current_piece);
+
+        std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> matching_edges = findMatchingEdges(current_piece->edges[direction], edges);
+        std::vector<std::shared_ptr<TreeNode<PlacedPiece>>> children = createNodeChildren(current_node, matching_edges, direction);
+        std::cout << "Creating children for " << current_piece->id << '\n';
+        for (auto child : children)
+        {
+            std::cout << "Creating child " << std::get<0>(child->value)->id << '\n';
+            current_node->children.push_back(child);
+        }
+
+        if (edges.size() == 1)
+        {
+            Coordinate current_coord = std::get<1>(current_node->value);
+            if (std::get<0>(current_coord) != 0 || std::get<1>(current_coord) != 2)
+            {
+                current_node->children.clear();
+            }
+        }
+
+        current_node = findNextNode(tree, current_node, &edges);
+
+        if (current_node == nullptr)
+        {
+            std::cout << "ABORT: No solution found" << std::endl;
+            std::exit(-1);
+        }
+
+        printCurrentTree(tree, current_node);
+
+        edges.erase(std::remove(edges.begin(), edges.end(), std::get<0>(current_node->value)), edges.end());
+    }
+
+    return placeTreePieces(tree, current_node);
 }
 
 void rotatePiece(std::shared_ptr<PuzzlePiece> piece)
