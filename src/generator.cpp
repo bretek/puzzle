@@ -1,7 +1,7 @@
 #include "generator.hpp"
 
-// the output x and y resolution of each jigsaw piece image, -2
-#define TARGET_RES 1078
+// the directory data will be saved to
+const std::string JIGSAW_DIR = "../examples/generate_examples/example2";
 
 void generatePuzzle(std::string ratio_goal_image, int num_pieces_goal)
 {
@@ -270,10 +270,13 @@ void Puzzle::cutPuzzle()
 
 void Puzzle::cutPuzzleHiRes()
 {
+    std::filesystem::create_directory(JIGSAW_DIR + "/pieces/");
+
     int piece_num = 0;
     int maximum_piece_side_length = pieceSideLength*2;
 
-    double scale = TARGET_RES/maximum_piece_side_length;
+    double target_res = 1078;
+    double scale = target_res/maximum_piece_side_length;
 
     double time_per_side = 7; // how many bspline time sections are in each puzzle piece side
 
@@ -401,7 +404,7 @@ void Puzzle::cutPuzzleHiRes()
             fillImageLines(new_piece);
 
             // write out
-            std::string piece_name = "../output_pieces/piece" + std::to_string(piece_num) + ".png";
+            std::string piece_name = JIGSAW_DIR + "/pieces/" + std::to_string(piece_num) + ".png";
             cv::imwrite(piece_name, new_piece);
             piece_num++;
         }
@@ -418,7 +421,8 @@ void Puzzle::showImg()
 
 void Puzzle::saveLines()
 {
-    cv::imwrite("puzzleOutput.png", lines);
+    std::filesystem::create_directory(JIGSAW_DIR);
+    cv::imwrite(JIGSAW_DIR + "/jigsaw.png", lines);
 }
 
 void drawHiResBSpline(cv::Mat &img, int img_offset_x, int img_offset_y, BSpline bspline, double t0, double t1, double scale, double resolution)

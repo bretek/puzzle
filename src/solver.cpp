@@ -1,25 +1,11 @@
 #include "solver.hpp"
 
-#define PIECE_SIMILARITY_THRESHOLD 0.94
+#define PIECE_SIMILARITY_THRESHOLD 0.9
 
 int solvePuzzle()
 {
-    /*
-    std::shared_ptr<PuzzlePiece> piece2 = findPieceEdges("../output_pieces/piece0.png");
-    std::shared_ptr<PuzzlePiece> piece1 = findPieceEdges("../output_pieces/piece1.png");
-
-    //rotatePiece(piece1);
-    //rotatePiece(piece1);
-
-    std::vector<std::tuple<std::shared_ptr<PuzzleEdge>, float>> matching_edge = findMatchingEdges(
-                                    piece1->edges[2], 
-                                    std::vector<std::shared_ptr<PuzzlePiece>>{{ piece2 }});
-    std::cout << std::get<1>(matching_edge[0]) << std::endl;
-    */
-    
-    //*
     std::cout << "Reading in puzzle pieces..." << std::endl;
-    std::vector<std::shared_ptr<PuzzlePiece>> pieces = findEdgesFromImages("../output_pieces");
+    std::vector<std::shared_ptr<PuzzlePiece>> pieces = findEdgesFromImages("../examples/generate_examples/example2/pieces/");
     std::cout << "Done!" << std::endl;
 
     std::cout << "Placing puzzle pieces..." << std::endl;
@@ -27,7 +13,6 @@ int solvePuzzle()
     std::cout << "Done!" << std::endl;
 
     showSolvedPuzzle(placed_pieces);
-    //*/
 
     return 0;
 }
@@ -256,11 +241,10 @@ void printCurrentTree(std::shared_ptr<Tree<PlacedPiece>> placed_pieces_tree, std
 
 std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePiece>> pieces)
 {
-    //std::shared_ptr<Tree<PlacedPiece>> placed_pieces_tree = solvePuzzleEdge(pieces);
+    std::shared_ptr<Tree<PlacedPiece>> placed_pieces_tree = solvePuzzleEdge(pieces);
 
-    return solvePuzzleEdge(pieces);
+    //return solvePuzzleEdge(pieces);
 
-    /*
     std::shared_ptr<TreeNode<PlacedPiece>> current_node = placed_pieces_tree->root_node;
 
     // find bottom of tree, going past this point will start modifying border
@@ -269,8 +253,6 @@ std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePie
     {
         end_edge_node = end_edge_node->children[0];
     }
-    
-    return placeTreePieces(placed_pieces_tree);
 
     while (current_node->children.size() != 0)
     {
@@ -279,6 +261,8 @@ std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePie
         pieces.erase(std::remove(pieces.begin(), pieces.end(), placed_piece), pieces.end());
         current_node = current_node->children[0];
     }
+
+    //return placeTreePieces(placed_pieces_tree, current_node);
 
     pieces.erase(std::remove(pieces.begin(), pieces.end(), std::get<0>(current_node->value)), pieces.end());
 
@@ -342,30 +326,35 @@ std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePie
             {
                 std::shared_ptr<PuzzleEdge> matched_edge = std::get<0>(match_data);
                 std::shared_ptr<PuzzlePiece> matched_piece = matched_edge->piece;
-                while (matched_edge->edge_side != (direction + 2) % 4)
-                {
-                    rotatePiece(matched_piece);
-                }
-                
-                // run checks on piece
-                // compare to adjacent edges
-                std::cout << "Checking " << matched_piece->id << " against:\n";
-                bool valid = true;
-                for (auto adjacent_edge : adjacent_edges)
-                {
-                    float difference = compareEdges(*matched_piece->edges[(adjacent_edge->edge_side+2)%4], *adjacent_edge);
-                    std::cout << adjacent_edge->piece->id << " : " << difference << "\n";
-                    if (difference < PIECE_SIMILARITY_THRESHOLD)
-                    {
-                        std::cout << "Invalid\n";
-                        valid = false;
-                    }
-                }
-                std::cout << "\n";
 
-                if (valid)
+                // if piece is already used don't reuse - might miss certain rotations but generally is better
+                if (std::find(children.begin(), children.end(), matched_piece) == children.end())
                 {
-                    children.push_back(matched_piece);
+                    while (matched_edge->edge_side != (direction + 2) % 4)
+                    {
+                        rotatePiece(matched_piece);
+                    }
+
+                    // run checks on piece
+                    // compare to adjacent edges
+                    std::cout << "Checking " << matched_piece->id << " against:\n";
+                    bool valid = true;
+                    for (auto adjacent_edge : adjacent_edges)
+                    {
+                        float difference = compareEdges(*matched_piece->edges[(adjacent_edge->edge_side+2)%4], *adjacent_edge);
+                        std::cout << adjacent_edge->piece->id << " : " << difference << "\n";
+                        if (difference < PIECE_SIMILARITY_THRESHOLD)
+                        {
+                            std::cout << "Invalid\n";
+                            valid = false;
+                        }
+                    }
+                    std::cout << "\n";
+
+                    if (valid)
+                    {
+                        children.push_back(matched_piece);
+                    }
                 }
             }
             // if children exist add them
@@ -440,8 +429,7 @@ std::vector<PlacedPiece> placePuzzlePieces(std::vector<std::shared_ptr<PuzzlePie
         }
     }
 
-    return placeTreePieces(placed_pieces_tree);
-    */
+    return placeTreePieces(placed_pieces_tree, current_node);
 }
 
 std::vector<std::shared_ptr<TreeNode<PlacedPiece>>> createNodeChildren(std::shared_ptr<TreeNode<PlacedPiece>> node, 
@@ -624,7 +612,7 @@ int findDirection(std::shared_ptr<PuzzlePiece> piece)
     return direction;
 }
 
-std::vector<PlacedPiece> solvePuzzleEdge(std::vector<std::shared_ptr<PuzzlePiece>> pieces)
+std::shared_ptr<Tree<PlacedPiece>> solvePuzzleEdge(std::vector<std::shared_ptr<PuzzlePiece>> pieces)
 {
     // identify corners and pieces
     std::vector<std::shared_ptr<PuzzlePiece>> edges = findEdgePieces(pieces);
@@ -678,7 +666,8 @@ std::vector<PlacedPiece> solvePuzzleEdge(std::vector<std::shared_ptr<PuzzlePiece
         edges.erase(std::remove(edges.begin(), edges.end(), std::get<0>(current_node->value)), edges.end());
     }
 
-    return placeTreePieces(tree, current_node);
+    return tree;
+    //return placeTreePieces(tree, current_node);
 }
 
 void rotatePiece(std::shared_ptr<PuzzlePiece> piece)
@@ -821,7 +810,7 @@ void showSolvedPuzzle(std::vector<PlacedPiece> placed_pieces)
         }
     }
 
-    cv::imwrite("../tests_output/solved_puzzle.png", solved_puzzle);
+    cv::imwrite("../examples/solve_examples/example2/solved_puzzle.png", solved_puzzle);
     //cv::imshow(std::to_string(std::rand()), solved_puzzle);
     //cv::waitKey(0);
 }
