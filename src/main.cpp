@@ -3,7 +3,7 @@
 
 int main()
 {
-    generatePuzzle("../tests/test.png", 50);
-    //solvePuzzle();
+    generatePuzzle("../examples/generate_examples/target_ratio.png", 50);
+    solvePuzzle();
     return 0;
 }
